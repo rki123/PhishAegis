@@ -14,28 +14,54 @@ app = Flask(__name__)
 CORS(app)
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
+os.makedirs(MODEL_DIR, exist_ok=True)
 models = {}
 cnn_model = None
 
-try:
-    models['lr']       = joblib.load(os.path.join(MODEL_DIR, 'lr_model.joblib'))
-    models['rf']       = joblib.load(os.path.join(MODEL_DIR, 'rf_model.joblib'))
-    models['xgb']      = joblib.load(os.path.join(MODEL_DIR, 'xgb_model.joblib'))
-    models['ensemble'] = joblib.load(os.path.join(MODEL_DIR, 'ensemble_model.joblib'))
-    print("ML models loaded.")
-except Exception as e:
-    print(f"ML model loading issue: {e}")
+# Check if HF_REPO_ID and HF_TOKEN are set in secrets/environment
+hf_repo_id = os.environ.get("HF_REPO_ID", None)
+hf_token = os.environ.get("HF_TOKEN", None)
 
+def get_model_path(filename):
+    local_path = os.path.join(MODEL_DIR, filename)
+    if os.path.exists(local_path):
+        return local_path
+    if hf_repo_id:
+        try:
+            from huggingface_hub import hf_hub_download
+            print(f"Downloading {filename} from Hugging Face Hub...")
+            return hf_hub_download(
+                repo_id=hf_repo_id,
+                filename=filename,
+                local_dir=MODEL_DIR,
+                token=hf_token
+            )
+        except Exception as e:
+            print(f"Could not download {filename} from HF Hub: {e}")
+    return None
+
+# Load ML Models
+for name, fname in [('lr', 'lr_model.joblib'), ('rf', 'rf_model.joblib'), 
+                    ('xgb', 'xgb_model.joblib'), ('ensemble', 'ensemble_model.joblib')]:
+    path = get_model_path(fname)
+    if path and os.path.exists(path):
+        try:
+            models[name] = joblib.load(path)
+            print(f"✅ {fname} loaded.")
+        except Exception as e:
+            print(f"⚠️ Error loading {fname}: {e}")
+
+# Load CNN
 try:
-    from tensorflow.keras.models import load_model
-    cnn_path = os.path.join(MODEL_DIR, 'cnn_model.keras')
-    if os.path.exists(cnn_path):
+    cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
+    if cnn_path and os.path.exists(cnn_path):
+        from tensorflow.keras.models import load_model
         cnn_model = load_model(cnn_path)
-        print("CNN deep learning model loaded.")
+        print("✅ CNN deep learning model loaded.")
     else:
-        print("CNN model file not found, running without deep learning.")
+        print("⚠️ CNN model file not found, running without deep learning.")
 except Exception as e:
-    print(f"CNN loading issue: {e}")
+    print(f"⚠️ CNN loading issue: {e}")
 
 
 @app.route('/')
@@ -219,4 +245,5 @@ def build_contributions(f):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
