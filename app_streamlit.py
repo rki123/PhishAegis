@@ -119,8 +119,8 @@ def load_all_models(hf_repo_id=None):
             except Exception as e:
                 st.warning(f"Note loading {fname}: {e}")
 
-    # 2. Load CNN Deep Learning Model
-    cnn_path = get_model_path('cnn_model.keras')
+    # 2. Load CNN Deep Learning Model (.h5 preferred for cross-version compatibility)
+    cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
     if cnn_path and os.path.exists(cnn_path):
         try:
             from tensorflow.keras.models import load_model
