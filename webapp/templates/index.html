@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishAegis { Malicious Urls Detector System }</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Dark glass overlay on top of background image -->
+    <div class="bkg-overlay"></div>
+
+    <header class="header">
+        <div class="brand">
+            <div class="brand-icon-wrapper" id="header-shield-wrapper">
+                <span class="brand-icon" id="header-shield">🛡️</span>
+                <div class="shield-pulse-ring"></div>
+            </div>
+            <div class="brand-text">
+                <span class="logo-title">PhishAegis</span>
+                <span class="logo-subtitle">Malicious URLs Detector System</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <div class="model-selector">
+                <label for="model-select">Detection Engine:</label>
+                <select id="model-select">
+                    <option value="hybrid" selected>Loading models...</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Hero Scanner Section -->
+        <section class="scanner-section">
+            <div class="shield-hero-badge" id="hero-shield-wrapper">
+                <span class="shield-hero-icon" id="hero-shield">🛡️</span>
+                <div class="shield-aura" id="shield-aura"></div>
+                <div class="shield-shockwave" id="shield-shockwave"></div>
+            </div>
+
+            <h1 class="hero-title">Real-Time URL Threat Analysis</h1>
+            <p class="hero-subtitle">Deep character-level neural inspection combined with 16 lexical security indicators.</p>
+            
+            <form id="url-form">
+                <div class="input-group" id="input-group-container">
+                    <div class="scanner-laser" id="scanner-laser"></div>
+                    <input type="text" id="url-input" placeholder="Paste or type URL (e.g. http://paypa1-verify-account.com/login)" required autocomplete="off">
+                    <button type="submit" id="check-btn">
+                        <span id="btn-icon">⚡</span>
+                        <span id="btn-text">Analyze URL</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Compact Model Weight Ensemble Specs Container -->
+            <div class="ensemble-spec-card">
+                <div class="spec-item">
+                    <span class="spec-label">Architecture</span>
+                    <span class="spec-value">Hybrid Meta-Ensemble</span>
+                </div>
+                <div class="spec-divider"></div>
+                <div class="spec-item">
+                    <span class="spec-label">Ensemble Fusion</span>
+                    <span class="spec-value highlight">85% CNN + 15% ML</span>
+                </div>
+                <div class="spec-divider"></div>
+                <div class="spec-item">
+                    <span class="spec-label">Corpus Size</span>
+                    <span class="spec-value">150k Clean Verified URLs</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Dashboard -->
+        <section id="result-section" class="result-section hidden">
+            <!-- Verdict Header Card -->
+            <div class="summary-card" id="summary-card">
+                <div class="verdict-header">
+                    <div class="verdict-badge-wrapper">
+                        <span id="status-badge" class="verdict-badge SAFE">SAFE</span>
+                    </div>
+                    <div class="verdict-details">
+                        <h2 id="scanned-url-text" class="scanned-url">https://example.com</h2>
+                        <p id="safety-score-text" class="verdict-subtext">95% Confidence (Safe)</p>
+                    </div>
+                </div>
+
+                <!-- Dual Engine Score Bar -->
+                <div class="engine-breakdown">
+                    <div class="engine-card">
+                        <span class="engine-name">Deep Learning CNN (85%)</span>
+                        <span class="engine-score" id="cnn-score-val">--%</span>
+                    </div>
+                    <div class="engine-card">
+                        <span class="engine-name">ML Ensemble RF+XGB (15%)</span>
+                        <span class="engine-score" id="ml-score-val">--%</span>
+                    </div>
+                </div>
+
+                <!-- Threat Flags List -->
+                <div class="flags-container" id="flags-list">
+                    <!-- Badges injected via JS -->
+                </div>
+            </div>
+
+            <!-- 2x2 Analytics Charts Section -->
+            <div class="dashboard-grid">
+                <!-- 1. Risk Gauge -->
+                <div class="chart-card">
+                    <h3>🎯 Risk Probability Score</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="riskGauge"></canvas>
+                        <div class="gauge-center-text" id="gauge-center-val">0%</div>
+                    </div>
+                </div>
+                
+                <!-- 2. Threat Vector Radar Chart -->
+                <div class="chart-card">
+                    <h3>🕸️ Threat Vector Radar Profile</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 3. Explainable AI Feature Contribution Bar Chart -->
+                <div class="chart-card">
+                    <h3>💡 Lexical Risk Contributions</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="featureChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 4. Model Comparison Bar Chart -->
+                <div class="chart-card">
+                    <h3>🤖 Model Score Comparison</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="modelsCompareChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Reasons & Stat Breakdown Section -->
+            <div class="deep-analysis-section">
+                <h3 class="section-title">🔍 Forensic Analysis & Threat Reasons</h3>
+                <div class="reasons-list" id="reasons-container">
+                    <!-- Reasons injected via JS -->
+                </div>
+
+                <h3 class="section-title mt-4">📊 Calculated URL Metrics & Statistics</h3>
+                <div class="stats-grid" id="stats-container">
+                    <!-- Stats injected via JS -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../static/js/main.js"></script>
+</body>
+</html>

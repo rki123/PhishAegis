@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Trained models (large binary files)
+models/*.joblib
+models/*.keras
+models/*.pkl
+models/*.h5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dataset (too large for GitHub)
+Dataset.csv
+
+# Logs
+*.log
+
+# Distribution
+dist/
+build/
+*.egg-info/

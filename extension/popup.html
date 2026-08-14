@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PhishAegis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span class="icon">🛡️</span>
+            <span class="title">PhishAegis</span>
+        </div>
+        <span class="version-tag">v1.0</span>
+    </div>
+    
+    <div class="content">
+        <div id="loading" class="loading-state">
+            <div class="spinner"></div>
+            <span>Analyzing URL with Hybrid AI...</span>
+        </div>
+        
+        <div id="result" class="hidden">
+            <div class="verdict-card">
+                <div id="status-badge" class="verdict-badge SAFE">SAFE</div>
+                <div class="score-display">
+                    <span id="risk-score" class="risk-val">0%</span>
+                    <span class="risk-lbl">Phishing Risk</span>
+                </div>
+            </div>
+
+            <div class="url-display" id="url-text">https://example.com</div>
+            
+            <div class="spec-pill">
+                <span>Hybrid Engine (85% CNN + 15% ML)</span>
+            </div>
+            
+            <div class="section-label">THREAT INDICATORS</div>
+            <div id="flags-list" class="flags-container"></div>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
