@@ -98,8 +98,13 @@ def load_all_models(hf_repo_id=None):
         if hf_repo_id:
             try:
                 from huggingface_hub import hf_hub_download
-                st.info(f"Downloading {filename} from Hugging Face Hub ({hf_repo_id})...")
-                return hf_hub_download(repo_id=hf_repo_id, filename=filename, local_dir=model_dir)
+                st.info(f"Downloading {filename} from Hugging Face Hub...")
+                return hf_hub_download(
+                    repo_id=hf_repo_id,
+                    filename=filename,
+                    local_dir=model_dir,
+                    token=hf_token
+                )
             except Exception as e:
                 st.warning(f"Could not download {filename} from HF Hub: {e}")
         return None
@@ -125,8 +130,16 @@ def load_all_models(hf_repo_id=None):
 
     return models, cnn_model
 
-# Check if HF_REPO_ID is set in secrets/environment or default
-hf_repo_id = st.secrets.get("HF_REPO_ID", None) if hasattr(st, "secrets") else None
+# Check if HF_REPO_ID and HF_TOKEN are set in secrets/environment
+hf_repo_id = None
+hf_token = None
+try:
+    hf_repo_id = st.secrets.get("HF_REPO_ID", None)
+    hf_token = st.secrets.get("HF_TOKEN", None)
+except Exception:
+    hf_repo_id = os.environ.get("HF_REPO_ID", None)
+    hf_token = os.environ.get("HF_TOKEN", None)
+
 models, cnn_model = load_all_models(hf_repo_id)
 
 # Sidebar Setup
