@@ -6,9 +6,19 @@ import joblib
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Limit TensorFlow memory usage for cloud deployment (must be set before TF imports)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress warnings
+# Limit TensorFlow memory usage for cloud deployment
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+# Check if HF_REPO_ID and HF_TOKEN are set in secrets/environment
+hf_repo_id = None
+hf_token = None
+try:
+    hf_repo_id = st.secrets.get("HF_REPO_ID", None)
+    hf_token = st.secrets.get("HF_TOKEN", None)
+except Exception:
+    hf_repo_id = os.environ.get("HF_REPO_ID", None)
+    hf_token = os.environ.get("HF_TOKEN", None)
 
 # Ensure project modules can be imported
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -42,6 +52,15 @@ st.markdown("""
         font-size: 1rem;
         color: #94a3b8;
         margin-bottom: 1.5rem;
+    }
+    .spec-card {
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 0.8rem 1.2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-around;
     }
     .verdict-badge {
         display: inline-block;
@@ -77,91 +96,57 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Read secrets FIRST before any cached function is called ──────────────────
-hf_repo_id = None
-hf_token = None
-try:
-    hf_repo_id = st.secrets.get("HF_REPO_ID", None)
-    hf_token = st.secrets.get("HF_TOKEN", None)
-except Exception:
-    hf_repo_id = os.environ.get("HF_REPO_ID", None)
-    hf_token = os.environ.get("HF_TOKEN", None)
-
-# ── Model Loader ──────────────────────────────────────────────────────────────
-# NOTE: No st.info/st.warning inside @st.cache_resource — that crashes the app.
+# Load Models (Local or Hugging Face Hub)
 @st.cache_resource
-def load_all_models(repo_id, token):
-    """Load all ML and CNN models. Falls back to HF Hub download if not local."""
+def load_all_models(hf_repo_id=None):
     model_dir = os.path.join(os.path.dirname(__file__), 'models')
     os.makedirs(model_dir, exist_ok=True)
     models = {}
     cnn_model = None
-    load_log = []  # Collect messages, render after cache returns
 
+    # Hugging Face Hub downloader fallback
     def get_model_path(filename):
         local_path = os.path.join(model_dir, filename)
         if os.path.exists(local_path):
             return local_path
-        if repo_id:
+        if hf_repo_id:
             try:
                 from huggingface_hub import hf_hub_download
-                load_log.append(f"⬇️ Downloading **{filename}** from Hugging Face Hub…")
-                downloaded = hf_hub_download(
-                    repo_id=repo_id,
+                st.info(f"Downloading {filename} from Hugging Face Hub...")
+                return hf_hub_download(
+                    repo_id=hf_repo_id,
                     filename=filename,
                     local_dir=model_dir,
-                    token=token
+                    token=hf_token
                 )
-                return downloaded
             except Exception as e:
-                load_log.append(f"⚠️ Could not download `{filename}`: {e}")
+                st.warning(f"Could not download {filename} from HF Hub: {e}")
         return None
 
-    # 1. ML Models
-    # NOTE: ensemble_model.joblib intentionally skipped — it contains full copies
-    # of RF+XGB internally, doubling RAM and causing OOM on Streamlit Cloud (1GB limit).
-    # We manually combine RF+XGB predictions instead.
-    for name, fname in [
-        ('lr',  'lr_model.joblib'),
-        ('rf',  'rf_model.joblib'),
-        ('xgb', 'xgb_model.joblib'),
-    ]:
+    # 1. Load ML Models
+    for name, fname in [('lr', 'lr_model.joblib'), ('rf', 'rf_model.joblib'), 
+                        ('xgb', 'xgb_model.joblib')]:
         path = get_model_path(fname)
         if path and os.path.exists(path):
             try:
                 models[name] = joblib.load(path)
-                load_log.append(f"✅ {name.upper()} loaded.")
             except Exception as e:
-                load_log.append(f"⚠️ Could not load `{fname}`: {e}")
+                st.warning(f"Note loading {fname}: {e}")
 
-    # 2. CNN Model — optional, only if tensorflow is installed
-    try:
-        import tensorflow as _tf  # noqa: F401 — just check it's available
-        cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
-        if cnn_path and os.path.exists(cnn_path):
+    # 2. Load CNN Deep Learning Model (.h5 preferred for cross-version compatibility)
+    cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
+    if cnn_path and os.path.exists(cnn_path):
+        try:
             from tensorflow.keras.models import load_model
             cnn_model = load_model(cnn_path)
-            load_log.append("✅ CNN model loaded successfully.")
-        else:
-            load_log.append("ℹ️ CNN model file not found — running on ML models only.")
-    except ImportError:
-        load_log.append("ℹ️ TensorFlow not installed — CNN skipped. Using ML ensemble only.")
-    except Exception as e:
-        load_log.append(f"⚠️ CNN model failed to load: {e}")
+        except Exception as e:
+            st.warning(f"Note loading CNN: {e}")
 
-    return models, cnn_model, load_log
+    return models, cnn_model
 
-# ── Load with a visible spinner (safe place for st commands) ─────────────────
-with st.spinner("🔄 Loading PhishAegis models…"):
-    models, cnn_model, load_log = load_all_models(hf_repo_id, hf_token)
+models, cnn_model = load_all_models(hf_repo_id)
 
-# Show any download/load messages after cache returns (safe!)
-if load_log:
-    with st.expander("📋 Model Load Log", expanded=False):
-        for msg in load_log:
-            st.markdown(msg)
-
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+# Sidebar Setup
 st.sidebar.markdown("### 🛡️ PhishAegis Settings")
 st.sidebar.markdown("---")
 
@@ -176,10 +161,8 @@ if 'xgb' in models:
     model_options.append("XGBoost Classifier")
 if 'rf' in models:
     model_options.append("Random Forest Classifier")
-if not model_options:
-    model_options = ["No Models Loaded"]
 
-selected_engine = st.sidebar.selectbox("Detection Engine", model_options)
+selected_engine = st.sidebar.selectbox("Detection Engine", model_options if model_options else ["ML Ensemble"])
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Architecture Specs:**")
@@ -187,48 +170,37 @@ st.sidebar.markdown("- **CNN Weight:** 85%")
 st.sidebar.markdown("- **ML Weight:** 15%")
 st.sidebar.markdown("- **Corpus Size:** 150,000 URLs")
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# Header Section
 st.markdown('<div class="main-header">🛡️ PhishAegis</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Malicious URLs Detector System — Real-Time Deep & Lexical Inspection</div>', unsafe_allow_html=True)
 
-# ── URL Input ─────────────────────────────────────────────────────────────────
+# URL Input Section
 url_input = st.text_input("Enter URL to analyze:", placeholder="https://paypa1-verify-account.com/login", key="input_url")
 analyze_clicked = st.button("⚡ Analyze URL", use_container_width=True)
 
 if analyze_clicked and url_input.strip():
     url = url_input.strip()
-
+    
     # Feature Extraction
-    try:
-        raw_features = extract_features(url)
-        feature_names = get_feature_names()
-        X_input = pd.DataFrame([raw_features])[feature_names]
-    except Exception as e:
-        st.error(f"Feature extraction failed: {e}")
-        st.stop()
+    raw_features = extract_features(url)
+    feature_names = get_feature_names()
+    X_input = pd.DataFrame([raw_features])[feature_names]
 
     ml_prob_val = None
     cnn_prob_val = None
 
-    try:
-        # Manual ensemble: average RF + XGB (same as soft-voting VotingClassifier)
-        if 'rf' in models and 'xgb' in models:
-            rf_p  = float(models['rf'].predict_proba(X_input)[0][1])
-            xgb_p = float(models['xgb'].predict_proba(X_input)[0][1])
-            ml_prob_val = (rf_p + xgb_p) / 2.0
-        elif 'xgb' in models:
-            ml_prob_val = float(models['xgb'].predict_proba(X_input)[0][1])
-        elif 'rf' in models:
-            ml_prob_val = float(models['rf'].predict_proba(X_input)[0][1])
-    except Exception as e:
-        st.warning(f"ML prediction error: {e}")
+    if 'rf' in models and 'xgb' in models:
+        rf_p = float(models['rf'].predict_proba(X_input)[0][1])
+        xgb_p = float(models['xgb'].predict_proba(X_input)[0][1])
+        ml_prob_val = (rf_p + xgb_p) / 2.0
+    elif 'xgb' in models:
+        ml_prob_val = float(models['xgb'].predict_proba(X_input)[0][1])
+    elif 'rf' in models:
+        ml_prob_val = float(models['rf'].predict_proba(X_input)[0][1])
 
-    try:
-        if cnn_model is not None:
-            seq = urls_to_sequences([url])
-            cnn_prob_val = float(cnn_model.predict(seq, verbose=0)[0][0])
-    except Exception as e:
-        st.warning(f"CNN prediction error: {e}")
+    if cnn_model is not None:
+        seq = urls_to_sequences([url])
+        cnn_prob_val = float(cnn_model.predict(seq, verbose=0)[0][0])
 
     # Determine risk score based on selected engine
     if "Hybrid" in selected_engine and cnn_prob_val is not None and ml_prob_val is not None:
@@ -240,7 +212,7 @@ if analyze_clicked and url_input.strip():
     else:
         prob_malicious = 0.5
 
-    risk_score   = round(prob_malicious * 100, 1)
+    risk_score = round(prob_malicious * 100, 1)
     safety_score = round((1.0 - prob_malicious) * 100, 1)
 
     status = "SAFE"
@@ -251,16 +223,16 @@ if analyze_clicked and url_input.strip():
 
     st.markdown("---")
 
-    # Verdict Banner
+    # Top Verdict Banner
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f'<div class="verdict-badge badge-{status}">{status}</div>', unsafe_allow_html=True)
     with col2:
         st.metric("Phishing Risk Score", f"{risk_score}%", delta=f"{risk_score}%" if status != "SAFE" else None, delta_color="inverse")
     with col3:
-        st.metric("CNN Deep Learning Score", f"{round(cnn_prob_val*100, 1)}%" if cnn_prob_val is not None else "N/A")
+        st.metric("CNN Deep Learning Score", f"{round(cnn_prob_val*100, 1)}%" if cnn_prob_val else "N/A")
     with col4:
-        st.metric("ML Ensemble Score", f"{round(ml_prob_val*100, 1)}%" if ml_prob_val is not None else "N/A")
+        st.metric("ML Ensemble Score", f"{round(ml_prob_val*100, 1)}%" if ml_prob_val else "N/A")
 
     st.caption(f"Scanned URL: `{url}`")
 
@@ -298,15 +270,17 @@ if analyze_clicked and url_input.strip():
     if raw_features['suspicious_tld']:
         flags.append("Suspicious TLD")
         reasons.append("Top-Level Domain belongs to a high-risk or free TLD registry.")
+
     if not flags:
         flags.append("Clean Structural Signature")
         reasons.append("No anomalous lexical, structural, or obfuscation indicators found.")
 
-    # Visual Charts
+    # Visual Charts Grid
     st.markdown("### 📊 Analytics & Threat Visualization")
     c1, c2 = st.columns(2)
 
     with c1:
+        # Radar Chart
         radar_categories = ['Obfuscation', 'Domain Entropy', 'URL Depth', 'Subdomains', 'Threat Patterns', 'Digit Ratio']
         radar_values = [
             min(100, int(raw_features['has_text_encoding']*40 + raw_features['has_at_symbol']*30 + raw_features['num_special_chars']*6)),
@@ -316,57 +290,59 @@ if analyze_clicked and url_input.strip():
             min(100, int(raw_features['use_of_ip']*45 + raw_features['suspicious_tld']*45 + raw_features['has_shortening_service']*35)),
             min(100, int(raw_features['digit_ratio'] * 100))
         ]
+        
         fig_radar = go.Figure(data=go.Scatterpolar(
-            r=radar_values, theta=radar_categories, fill='toself',
+            r=radar_values,
+            theta=radar_categories,
+            fill='toself',
             fillcolor='rgba(244, 63, 94, 0.25)' if status != "SAFE" else 'rgba(16, 185, 129, 0.25)',
             line=dict(color='#f43f5e' if status != "SAFE" else '#10b981', width=2)
         ))
         fig_radar.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-            showlegend=False, title="🕸️ Threat Vector Radar Profile",
-            template="plotly_dark", height=350
+            showlegend=False,
+            title="🕸️ Threat Vector Radar Profile",
+            template="plotly_dark",
+            height=350
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
     with c2:
+        # Model Comparison Chart
         all_scores = {}
-        try:
-            if 'rf' in models:
-                all_scores['Random Forest'] = round(float(models['rf'].predict_proba(X_input)[0][1]) * 100, 1)
-            if 'xgb' in models:
-                all_scores['XGBoost'] = round(float(models['xgb'].predict_proba(X_input)[0][1]) * 100, 1)
-            if 'rf' in models and 'xgb' in models:
-                all_scores['ML Ensemble'] = round((all_scores['Random Forest'] + all_scores['XGBoost']) / 2.0, 1)
-        except Exception:
-            pass
-        if cnn_prob_val is not None:
+        if 'rf' in models:
+            all_scores['Random Forest'] = round(float(models['rf'].predict_proba(X_input)[0][1]) * 100, 1)
+        if 'xgb' in models:
+            all_scores['XGBoost'] = round(float(models['xgb'].predict_proba(X_input)[0][1]) * 100, 1)
+        if 'rf' in models and 'xgb' in models:
+            all_scores['ML Ensemble'] = round((all_scores['Random Forest'] + all_scores['XGBoost']) / 2.0, 1)
+        if cnn_prob_val:
             all_scores['CNN Deep Learning'] = round(cnn_prob_val * 100, 1)
         all_scores['Hybrid (85/15)'] = risk_score
 
         df_scores = pd.DataFrame({'Model': list(all_scores.keys()), 'Risk %': list(all_scores.values())})
-        fig_models = px.bar(df_scores, x='Model', y='Risk %', title="🤖 Model Prediction Comparison",
-                            color='Risk %', color_continuous_scale='Reds' if status != "SAFE" else 'Greens')
+        fig_models = px.bar(df_scores, x='Model', y='Risk %', title="🤖 Model Prediction Comparison", color='Risk %', color_continuous_scale='Reds' if status != "SAFE" else 'Greens')
         fig_models.update_layout(template="plotly_dark", height=350, yaxis_range=[0, 100])
         st.plotly_chart(fig_models, use_container_width=True)
 
-    # Forensic Reasons
+    # Detailed Forensic Reasons
     st.markdown("### 🔍 Forensic Analysis & Threat Reasons")
     for f, r in zip(flags, reasons):
         st.markdown(f'<div class="reason-box"><strong>• {f}</strong><br><span style="color:#94a3b8; font-size:0.9rem;">{r}</span></div>', unsafe_allow_html=True)
 
-    # URL Statistics Grid
+    # Raw Statistics Grid
     st.markdown("### 📈 Calculated URL Statistics")
     stat_cols = st.columns(5)
     stat_data = [
-        ("URL Length",       raw_features['url_len']),
-        ("Hostname Length",  raw_features['hostname_length']),
-        ("Domain Entropy",   f"{raw_features['domain_entropy']:.2f}"),
-        ("Special Chars",    raw_features['num_special_chars']),
-        ("Path Depth",       raw_features['path_depth']),
-        ("Subdomains",       raw_features['subdomain_count']),
-        ("Digit Ratio",      f"{raw_features['digit_ratio']*100:.1f}%"),
-        ("Suspicious TLD",   "Yes" if raw_features['suspicious_tld'] else "No"),
-        ("IP Address",       "Yes" if raw_features['use_of_ip'] else "No"),
+        ("URL Length", raw_features['url_len']),
+        ("Hostname Length", raw_features['hostname_length']),
+        ("Domain Entropy", f"{raw_features['domain_entropy']:.2f}"),
+        ("Special Chars", raw_features['num_special_chars']),
+        ("Path Depth", raw_features['path_depth']),
+        ("Subdomains", raw_features['subdomain_count']),
+        ("Digit Ratio", f"{raw_features['digit_ratio']*100:.1f}%"),
+        ("Suspicious TLD", "Yes" if raw_features['suspicious_tld'] else "No"),
+        ("IP Address", "Yes" if raw_features['use_of_ip'] else "No"),
         ("Obfuscated (%xx)", "Yes" if raw_features['has_text_encoding'] else "No")
     ]
     for idx, (lbl, val) in enumerate(stat_data):
