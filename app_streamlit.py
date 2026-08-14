@@ -127,15 +127,20 @@ def load_all_models(repo_id, token):
             except Exception as e:
                 load_log.append(f"⚠️ Could not load `{fname}`: {e}")
 
-    # 2. CNN Model — prefer .h5 (universal) over .keras (Keras-2 only)
-    cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
-    if cnn_path and os.path.exists(cnn_path):
-        try:
+    # 2. CNN Model — optional, only if tensorflow is installed
+    try:
+        import tensorflow as _tf  # noqa: F401 — just check it's available
+        cnn_path = get_model_path('cnn_model.h5') or get_model_path('cnn_model.keras')
+        if cnn_path and os.path.exists(cnn_path):
             from tensorflow.keras.models import load_model
             cnn_model = load_model(cnn_path)
             load_log.append("✅ CNN model loaded successfully.")
-        except Exception as e:
-            load_log.append(f"⚠️ CNN model failed to load: {e}")
+        else:
+            load_log.append("ℹ️ CNN model file not found — running on ML models only.")
+    except ImportError:
+        load_log.append("ℹ️ TensorFlow not installed — CNN skipped. Using ML ensemble only.")
+    except Exception as e:
+        load_log.append(f"⚠️ CNN model failed to load: {e}")
 
     return models, cnn_model, load_log
 
